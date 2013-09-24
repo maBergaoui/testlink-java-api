@@ -25,6 +25,7 @@ package br.eti.kinoshita.testlinkjavaapi;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -246,7 +247,8 @@ class TestCaseService extends BaseService {
             List<Integer> keywordsIds, String keywords, Boolean executed, List<Integer> assignedTo,
             String[] executeStatus, ExecutionType executionType, Boolean getStepInfo, TestCaseDetails detail)
             throws TestLinkAPIException {
-        TestCase[] testCases = null;
+        
+        List<TestCase> testCaseList = new ArrayList<TestCase>();
 
         try {
             Map<String, Object> executionData = new HashMap<String, Object>();
@@ -270,36 +272,42 @@ class TestCaseService extends BaseService {
              */
 
             Map<String, Object> responseMap = Util.castToMap(response);
-            Set<Entry<String, Object>> entrySet = responseMap.entrySet();
-            testCases = new TestCase[entrySet.size()];
-            int index = 0;
-            for (Entry<String, Object> entry : entrySet) {
-                String key = entry.getKey();
+            Object value = null;
+            
+            for (String key : responseMap.keySet()) {
+                value = responseMap.get(key);
                 Map<String, Object> testCaseMap = null;
+                Map<String, Object> testCaseMapByPlatform = null;
 
-                if (entry.getValue() instanceof Object[]) {
-                    Object[] responseArray = (Object[]) entry.getValue();
+               	if (value instanceof Object[]) {
+                    Object[] responseArray = (Object[]) value;
                     testCaseMap = (Map<String, Object>) responseArray[0];
-                } else if (entry.getValue() instanceof Map<?, ?>) {
-                    testCaseMap = (Map<String, Object>) entry.getValue();
-                    if (testCaseMap.size() > 0) {
-                        Set<String> keys = testCaseMap.keySet();
-                        Object o = testCaseMap.get(keys.iterator().next());
-                        if (o instanceof Map<?, ?>) {
-                            testCaseMap = (Map<String, Object>) o;
-                        }
-                    }
+					testCaseMap.put(TestLinkResponseParams.ID.toString(), key);
+					testCaseList.add(Util.getTestCase(testCaseMap));
                 }
-                testCaseMap.put(TestLinkResponseParams.ID.toString(), key);
-                testCases[index] = Util.getTestCase(testCaseMap);
-                index += 1;
-            }
-        } catch (XmlRpcException xmlrpcex) {
-            throw new TestLinkAPIException("Error retrieving test cases for test plan: " + xmlrpcex.getMessage(),
-                    xmlrpcex);
+               	else if (value instanceof Map<?, ?>){						
+					testCaseMapByPlatform = (Map<String, Object>) value;
+					for (Object platformId : testCaseMapByPlatform.keySet()){
+						testCaseMap = (Map<String, Object>) testCaseMapByPlatform.get(platformId);
+						if (testCaseMap.size() > 0) {
+							Set<String> keys = testCaseMap.keySet();
+							Object o = testCaseMap.get(keys.iterator().next());
+							if (o instanceof Map<?, ?>) {
+								testCaseMap = (Map<String, Object>) o;
+							}
+						}
+						testCaseMap.put(TestLinkResponseParams.ID.toString(), key);
+						testCaseList.add(Util.getTestCase(testCaseMap));
+					}
+				}
+			}
+        } 
+        
+        catch (XmlRpcException xmlrpcex) {
+            throw new TestLinkAPIException("Error retrieving test cases for test plan: " + xmlrpcex.getMessage(), xmlrpcex);
         }
 
-        return testCases;
+        return testCaseList.toArray(new TestCase[testCaseList.size()]);
     }
 
     /**
